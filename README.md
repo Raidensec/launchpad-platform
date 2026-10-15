@@ -1,12 +1,10 @@
 # Launchpad Platform
 
-Launchpad is a small Python developer platform that scaffolds independent HTTP service repositories. Each generated repository includes a runnable service, a container build, a restricted Helm chart, Argo CD configuration, GitHub Actions workflows, and explicit preview lifecycle commands.
+Launchpad turns a service name and GitHub repository into a service project you can inspect before deciding how to ship it. Start by generating the files and checking the result; when you have a published image digest, render the chart locally before promoting it.
 
-The platform CLI itself uses only the Python standard library at runtime. It does not provision a cluster or cloud account. Preview deployment is an explicit, manually dispatched GitHub Actions workflow against a cluster you configure.
+## Create a service
 
-## Install and create a service
-
-Use Python 3.12. In a Bash-compatible shell:
+With Python 3.12, install the CLI from this repository and create a project under an existing directory:
 
 ```bash
 python -m venv .venv
@@ -18,52 +16,63 @@ launchpad init payments-api --repository Raidensec/payments-api --output-parent 
 launchpad check ./services/payments-api
 ```
 
-`launchpad init` requires an existing output parent, validates the DNS service name and GitHub `owner/repository`, rejects symbolic-link parents, and refuses to overwrite an existing service directory. Generated files are opened with exclusive creation. It does not run Git, Docker, Helm, or shell commands.
+`init` writes a new `payments-api` directory. `check` validates its project metadata and required files. The generated directory includes:
 
-The generated service binds to `0.0.0.0:8000` by default and exposes `GET /`, `/healthz`, `/readyz`, and `/metrics`. For local access, set `HOST=127.0.0.1` before running it:
+- `service/`: a small Python HTTP service with `/`, `/healthz`, `/readyz`, and `/metrics` endpoints.
+- `Dockerfile`: builds the service image.
+- `deploy/chart/`: a Helm chart whose workload uses an immutable image digest.
+- `deploy/gitops/application.yaml`: an Argo CD Application configured to follow the `main` branch.
+- `.github/workflows/`: service CI and separate image-promotion and preview workflows.
+- `scripts/`: the generated workflow helpers for promotion and preview lifecycle operations.
+
+The service uses Python's standard library and listens on `0.0.0.0:8000` by default. To run it locally, set a loopback address:
 
 ```bash
 cd services/payments-api
 HOST=127.0.0.1 PORT=8000 python -m service.app
 ```
 
-The service uses the Python standard library. Its generated CI runs Ruff, dependency auditing, and Helm chart linting; it does not deploy the service.
+After stopping the service with Ctrl-C, return to the platform repository root with `cd ../..` before continuing. The render and plan commands below use paths relative to that root.
 
-## Render and preview plans
+## Render with an image digest
 
-The chart fails closed until an immutable image digest is provided. After the generated repository's `Service CI` workflow publishes an image, copy the `sha256:...` digest from its run summary:
+The chart starts with an empty digest and fails closed until it receives an immutable `sha256` digest. The generated `Service CI` workflow validates pull requests and pushes to `main`; after a validated push to `main`, it builds and publishes the image to GHCR and records its digest in the workflow summary.
+
+Use that digest to render the chart locally. `launchpad render` requires Helm 3.19 or newer and prints rendered YAML:
 
 ```bash
 read -r -p "Published image digest (sha256:...): " IMAGE_DIGEST
 launchpad render ./services/payments-api --digest "$IMAGE_DIGEST"
+```
+
+The generated `Promote image digest` workflow can then be dispatched from the default branch. With a protected `promotion` environment configured, it updates the chart's digest and opens a pull request. The generated Argo CD Application tracks `main`; after the promotion pull request is merged, Argo CD can reconcile the committed chart values in an environment where Argo CD is configured.
+
+The generated workflows assume `main` is the repository's default branch for image publishing and the Argo CD `targetRevision`. If you use another default branch, update both settings in the generated repository. Promotion and preview dispatches use the configured default branch.
+
+## Plan and run a preview
+
+These CLI commands describe preview operations as JSON:
+
+```bash
 launchpad preview-plan payments-api --repository Raidensec/payments-api \
   --digest "$IMAGE_DIGEST" --pull-request 123
 launchpad destroy-plan payments-api --repository Raidensec/payments-api \
   --pull-request 123
 ```
 
-`render` requires Helm 3.19 or newer and prints local rendered YAML. The preview and destroy commands print JSON plans with `"mode": "plan-only"` and `"cluster_calls": false`; they do not deploy or delete resources. The actual preview workflow is `workflow_dispatch` only, checks out the repository's default branch, and requires the protected `preview` GitHub environment.
+Both plans report `"mode": "plan-only"` and `"cluster_calls": false`. They do not contact Kubernetes. To create or remove a preview, the generated `Preview` workflow must be started manually with `workflow_dispatch` from the default branch. Configure its `preview` GitHub environment to require approval and provide the cluster credential as `KUBECONFIG_B64`. A deploy uses a published image digest; a destroy checks the namespace ownership metadata before removing it.
 
-Generated repositories assume `main` is the default branch: service CI publishes images from `main`, and the Argo CD Application tracks `main`. If you choose another default branch, update both settings in the generated repository. Promotion and preview workflows check the repository's configured default branch dynamically.
+See [operations](docs/operations.md) for the environment setup and lifecycle steps, and [architecture](docs/architecture.md) for the deployment flow and trust boundaries.
 
-See [operations](docs/operations.md) for image promotion, GitHub environment setup, and preview cleanup. See [architecture](docs/architecture.md) for trust boundaries and the deployment flow.
+## Platform checks
 
-## Checks
+The platform repository's CI runs Ruff, Python bytecode compilation, and `pip-audit`, then scaffolds and checks a temporary service and lints and renders its chart. The chart commands use a synthetic digest derived from `Chart.yaml` so the chart can be validated before any image exists. That value is only a validation fixture.
 
-The platform CI runs Ruff, Python bytecode compilation, `pip-audit`, then scaffolds a temporary service, checks its required files, and runs `helm lint` with a synthetic digest. That synthetic chart hash exists only to validate Helm syntax; it is not an image and must not be deployed. CI does not contact Kubernetes or AWS.
+These checks do not publish an image or exercise Kubernetes, AWS, a preview, or an Argo CD sync. Image publishing and previews use generated repository workflows; a live sync also depends on Argo CD and cluster configuration outside this repository.
 
-To run the platform's static checks locally after installing the development dependencies:
+To run the local Python checks after installing the development dependencies:
 
 ```bash
 ruff check .
 python -m compileall -q src
 ```
-
-The chart checks and preview lifecycle require Helm or a GitHub environment respectively. No AWS infrastructure is included or started by this repository. The implementation does not claim production readiness; adapt resource budgets, ingress, network egress, registry access, and cluster policy to your environment before use.
-
-## Repository layout
-
-- `src/launchpad/` contains the CLI, input validation, safe scaffold writer, chart rendering, and plan generation.
-- `src/launchpad/assets/` contains the generated service project templates.
-- `.github/workflows/ci.yml` checks the platform package and generated chart without deploying infrastructure.
-- `docs/` records the architecture and operational prerequisites.

@@ -48,7 +48,7 @@ read -r -p "Published image digest (sha256:...): " IMAGE_DIGEST
 launchpad render ./services/payments-api --digest "$IMAGE_DIGEST"
 ```
 
-The CLI requires Helm 3.19 or later for `render`; the generated GitHub workflows install Helm 3.22.1. The CLI `preview-plan` and `destroy-plan` accept service/repository/PR inputs and never need credentials.
+The CLI requires Helm 3.19 or later for `render`; the generated GitHub workflows install Helm 3.19.0. The CLI `preview-plan` and `destroy-plan` accept service/repository/PR inputs and never need credentials.
 
 ## What has not been validated here
 

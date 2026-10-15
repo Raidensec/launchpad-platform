@@ -39,7 +39,7 @@ jobs:
           python-version: "3.12"
       - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         with:
-          version: v3.22.1
+          version: v3.19.0
       - name: Deploy isolated preview
         if: inputs.operation == 'deploy'
         id: deploy

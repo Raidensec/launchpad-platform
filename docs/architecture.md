@@ -26,7 +26,7 @@ The promotion and preview workflows run from the default branch only. Pull-reque
 - The Helm chart pins images by `repository@sha256:digest`; an empty digest makes template rendering fail. The values schema allows an empty initial value so a freshly scaffolded repository can exist before its first image is built.
 - The Argo CD `Application` reads the chart's committed values. It supplies no inline digest override, so a merged promotion PR is the source of the deployed image change.
 - The generated service CI runs linting, dependency auditing, and Helm chart validation for pull requests and pushes to `main`. On a push to `main`, after validation, it publishes a commit tag to GHCR, requests BuildKit provenance and an SBOM, and publishes an attestation for the resulting digest.
-- The platform's own CI statically compiles Python and lints a temporary generated project. It uses the chart metadata hash only as a structural Helm lint fixture; no such fixture is pushed or promoted.
+- The platform CI runs Ruff and bytecode compilation on its Python source, audits dependencies, scaffolds a temporary service and checks its required files, then runs `helm lint` and `launchpad render` on the generated chart. Both chart commands use a synthetic digest derived from `Chart.yaml` only to permit rendering; it is not an image and is never pushed or promoted.
 
 ## Workload controls
 

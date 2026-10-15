@@ -1,0 +1,27 @@
+replicaCount: 2
+
+image:
+  repository: {{IMAGE_REPOSITORY}}
+  digest: ""
+  pullPolicy: IfNotPresent
+
+service:
+  port: 8000
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+networkPolicy:
+  enabled: true
+
+quota:
+  pods: "10"
+  requestsCpu: "1"
+  requestsMemory: 512Mi
+  limitsCpu: "2"
+  limitsMemory: 1Gi

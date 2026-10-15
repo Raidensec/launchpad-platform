@@ -1,0 +1,11 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "launchpad.name" . }}
+  labels:
+    {{- include "launchpad.labels" . | nindent 4 }}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      {{- include "launchpad.selectorLabels" . | nindent 6 }}

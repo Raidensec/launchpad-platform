@@ -1,0 +1,4 @@
+[project]
+service = "{{SERVICE_NAME}}"
+repository = "{{GITHUB_REPOSITORY}}"
+image = "{{IMAGE_REPOSITORY}}"

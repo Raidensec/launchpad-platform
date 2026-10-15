@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: {{SERVICE_NAME}}
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/{{GITHUB_REPOSITORY}}.git
+    targetRevision: main
+    path: deploy/chart
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: {{SERVICE_NAME}}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - PruneLast=true

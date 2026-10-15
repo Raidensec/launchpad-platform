@@ -1,0 +1,66 @@
+name: Promote image digest
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_digest:
+        description: Digest from the successful publish workflow
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  propose-promotion:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    environment: promotion
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Update chart values
+        env:
+          IMAGE_DIGEST: ${{ inputs.image_digest }}
+        run: python scripts/promote_digest.py "$IMAGE_DIGEST"
+      - name: Confirm the promotion token belongs to the dispatcher
+        env:
+          GH_TOKEN: ${{ secrets.PROMOTION_TOKEN }}
+          EXPECTED_ACTOR: ${{ github.actor }}
+          EXPECTED_ACTOR_ID: ${{ github.actor_id }}
+        shell: bash
+        run: |
+          identity="$(gh api user --jq '(.id|tostring) + "|" + .type')"
+          expected="${EXPECTED_ACTOR_ID}|User"
+          if [[ "$identity" != "$expected" || "$EXPECTED_ACTOR" == *"[bot]"* ]]; then
+            echo "PROMOTION_TOKEN must belong to the human who dispatched this workflow" >&2
+            exit 1
+          fi
+          git config user.name "$EXPECTED_ACTOR"
+          git config user.email "${EXPECTED_ACTOR_ID}+${EXPECTED_ACTOR}@users.noreply.github.com"
+          gh auth setup-git
+      - name: Open a digest promotion pull request
+        env:
+          GH_TOKEN: ${{ secrets.PROMOTION_TOKEN }}
+          IMAGE_DIGEST: ${{ inputs.image_digest }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+        shell: bash
+        run: |
+          if git diff --quiet -- deploy/chart/values.yaml; then
+            echo "The requested digest is already selected." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          branch="launchpad/promote-${GITHUB_RUN_ID}"
+          git switch -c "$branch"
+          git add deploy/chart/values.yaml
+          git commit -m "Promote {{SERVICE_NAME}} image digest"
+          git push --set-upstream origin "$branch"
+          gh pr create --base "$DEFAULT_BRANCH" --head "$branch" \
+            --title "Promote {{SERVICE_NAME}} image digest" \
+            --body "Set deploy/chart/values.yaml to the published immutable image digest ${IMAGE_DIGEST}. Merge this pull request to let Argo CD reconcile the deployment."

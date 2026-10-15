@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+.ruff_cache/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.coverage
+.terraform/
+terraform.tfstate*
+*.tfplan
+.kube/

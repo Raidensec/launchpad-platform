@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools==80.9.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "launchpad-platform"
+version = "0.1.0"
+description = "A small developer platform for Python service scaffolding and safe previews."
+requires-python = ">=3.12,<3.13"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["ruff==0.17.0", "pip-audit==2.10.1"]
+
+[project.scripts]
+launchpad = "launchpad.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+launchpad = [
+    "assets/.dockerignore",
+    "assets/.github/workflows/*.yml",
+    "assets/Dockerfile",
+    "assets/launchpad.toml",
+    "assets/requirements.txt",
+    "assets/requirements-dev.txt",
+    "assets/service/*.py",
+    "assets/scripts/*.py",
+    "assets/deploy/chart/Chart.yaml",
+    "assets/deploy/chart/values.yaml",
+    "assets/deploy/chart/values.schema.json",
+    "assets/deploy/chart/templates/*.yaml",
+    "assets/deploy/chart/templates/*.tpl",
+    "assets/deploy/gitops/application.yaml",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
